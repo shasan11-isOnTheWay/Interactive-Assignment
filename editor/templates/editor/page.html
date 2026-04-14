@@ -1,0 +1,1485 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ page.title }} — Interactive Teaching Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Literata:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{% static 'editor/css/page.css' %}">
+</head>
+<body>
+
+<!-- ─── NAVBAR ─────────────────────────────────────── -->
+<nav class="navbar">
+  <div class="navbar-brand">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+    ITP
+  </div>
+  <div class="pages-nav" id="pagesNav">
+    {% for p in pages %}
+    <a href="/page/{{ p.slug }}/"
+       class="page-tab {% if p.id == page.id %}active{% endif %}"
+       data-page-id="{{ p.id }}" data-slug="{{ p.slug }}">
+      <span class="page-tab-title">{{ p.title }}</span>
+      <button class="page-tab-close" onclick="deletePage(event,'{{ p.slug }}')">✕</button>
+    </a>
+    {% endfor %}
+  </div>
+  <button class="btn-edit-mode" id="editModeToggle" onclick="toggleEditMode()" aria-pressed="false">✏ Edit Mode</button>
+  <button class="btn-new-page" onclick="createNewPage()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Page
+  </button>
+</nav>
+
+<div class="global-toolbar" id="globalToolbar">
+  <button class="toolbar-btn" onclick="fmt('bold')" title="Bold"><b>B</b></button>
+  <button class="toolbar-btn" onclick="fmt('italic')" title="Italic"><i>I</i></button>
+  <button class="toolbar-btn" onclick="fmt('underline')" title="Underline"><u>U</u></button>
+  <button class="toolbar-btn" onclick="fmt('strikeThrough')" title="Strike">S̶</button>
+  <div class="toolbar-sep"></div>
+  <button class="toolbar-btn" onclick="highlightPrimary()" title="Highlight">🖊</button>
+  <button class="toolbar-btn" onclick="setTextColor()" title="Text Color">A</button>
+  <button class="toolbar-btn" onclick="insertLink()" title="Link">🔗</button>
+  <button class="toolbar-btn" onclick="linkToPage()" title="Link To Page">📑</button>
+  <button class="toolbar-btn" onclick="insertInlineMedia()" title="Insert Media">🎞</button>
+  <button class="toolbar-btn" onclick="pickArticleImage()" title="Insert Article Image">🖼</button>
+  <button class="toolbar-btn" onclick="pickArticleAudio()" title="Insert Article Audio">🔊</button>
+  <button class="toolbar-btn" onclick="pickArticleVideo()" title="Insert Article Video">🎬</button>
+  <button class="toolbar-btn" onclick="addComment()" title="Comment">💬</button>
+  <div class="toolbar-sep"></div>
+  <button class="toolbar-btn" onclick="fmt('formatBlock','h2')" title="H2">H2</button>
+  <button class="toolbar-btn" onclick="fmt('formatBlock','h3')" title="H3">H3</button>
+  <button class="toolbar-btn" onclick="fmt('formatBlock','p')" title="Para">¶</button>
+  <div class="toolbar-sep"></div>
+  <button class="toolbar-btn" onclick="fmt('insertUnorderedList')" title="List">• List</button>
+  <button class="toolbar-btn" onclick="fmt('insertOrderedList')" title="Ordered">1. List</button>
+  <div class="toolbar-sep"></div>
+  <button class="toolbar-btn" onclick="fmt('justifyFull')" title="Justify">≡</button>
+  <button class="toolbar-btn" onclick="fmt('undo')" title="Undo">↩</button>
+  <button class="toolbar-btn" onclick="fmt('redo')" title="Redo">↪</button>
+</div>
+
+<!-- ─── LAYOUT ─────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- MAIN COLUMN -->
+  <main class="main-col">
+
+    <!-- PAGE HEADER -->
+    <div class="page-header">
+      <div class="save-indicator">
+        <span class="save-dot"></span>
+        <span id="saveStatus">Saved</span>
+      </div>
+      <h1 id="pageTitle" contenteditable="true"
+          data-placeholder="Page title..."
+          onblur="savePageTitle()" onkeydown="handleTitleKey(event)">{{ page.title }}</h1>
+      <p contenteditable="true" id="pageSubtitle"
+         onblur="savePageContent()"
+         style="outline:none">Click on highlighted terms to explore multimedia content</p>
+    </div>
+
+    <!-- MULTIMEDIA SECTION -->
+    <div class="section-card">
+      <div class="section-title">
+        <span>📎 Multimedia Content</span>
+      </div>
+      <div class="media-grid" id="mediaGrid">
+        {% for item in multimedia_items %}
+        {% if item.show_in_multimedia %}
+        <div class="media-card" id="mc-{{ item.id }}"
+             onclick="openMediaModal({{ item.id }})" data-type="{{ item.media_type }}">
+          <div class="card-actions">
+            <button class="card-btn card-btn-edit" title="Insert in article" onclick="event.stopPropagation();insertMediaFromGrid({{ item.id }})">➕</button>
+            <button class="card-btn card-btn-edit" onclick="event.stopPropagation();openEditMedia({{ item.id }})">✏</button>
+            <button class="card-btn card-btn-del" onclick="event.stopPropagation();deleteMedia({{ item.id }})">✕</button>
+          </div>
+          <span class="media-card-icon media-type-icon-{{ item.media_type }}">
+            {% if item.media_type == 'text' %}📄
+            {% elif item.media_type == 'image' %}🖼
+            {% elif item.media_type == 'audio' %}🔊
+            {% elif item.media_type == 'video' %}🎬
+            {% else %}▶️{% endif %}
+          </span>
+          <span class="media-card-label">{{ item.title }}</span>
+          <span class="media-card-type">{{ item.media_type }}</span>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+      <div class="add-media-row">
+        <button type="button" class="btn-add-media" onclick="addMediaQuick('text', event)">📄 Text</button>
+        <button type="button" class="btn-add-media" onclick="addMediaQuick('image', event)">🖼 Image</button>
+        <button type="button" class="btn-add-media" onclick="addMediaQuick('audio', event)">🔊 Audio</button>
+        <button type="button" class="btn-add-media" onclick="addMediaQuick('video', event)">🎬 Video</button>
+        <button type="button" class="btn-add-media" onclick="addMediaQuick('youtube', event)">▶️ YouTube</button>
+      </div>
+      <input type="file" id="quickImageInput" accept="image/*" style="display:none" onchange="quickUploadMedia('image', this)">
+      <input type="file" id="quickAudioInput" accept="audio/*" style="display:none" onchange="quickUploadMedia('audio', this)">
+      <input type="file" id="quickVideoInput" accept="video/*" style="display:none" onchange="quickUploadMedia('video', this)">
+    </div>
+
+    <!-- ARTICLE / TEXT EDITOR -->
+    <div class="section-card">
+      <div class="section-title">
+        <span>📰 Article Content</span>
+      </div>
+      <div class="article-editor"
+           id="articleEditor"
+           contenteditable="true"
+           oninput="scheduleAutoSave()"
+           onmouseup="handleTextSelection()"
+           onkeyup="handleTextSelection()">{{ page.content|safe }}</div>
+      <input type="file" id="articleImageInput" accept="image/*" style="display:none" onchange="handleArticleMediaUpload('image', this)">
+      <input type="file" id="articleAudioInput" accept="audio/*" style="display:none" onchange="handleArticleMediaUpload('audio', this)">
+      <input type="file" id="articleVideoInput" accept="video/*" style="display:none" onchange="handleArticleMediaUpload('video', this)">
+    </div>
+
+  </main>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar-col">
+    <div class="sidebar-header">
+      <span>Expandable Content</span>
+      <button class="btn-add-section" onclick="addExpandableSection()">+ Add</button>
+    </div>
+    <div id="expandableList">
+      {% for section in expandable_sections %}
+      <div class="expandable-item {% if section.is_open %}open{% endif %}"
+           id="exp-{{ section.id }}" data-id="{{ section.id }}">
+        <div class="expandable-header" onclick="toggleExpand({{ section.id }})">
+          <span contenteditable="true"
+                class="expandable-title-edit"
+                onclick="event.stopPropagation()"
+                onblur="saveExpandableTitle({{ section.id }}, this)"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">{{ section.title }}</span>
+          <svg class="expand-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div class="expandable-body">
+          <div class="expandable-content-editor"
+               contenteditable="true"
+               oninput="scheduleExpandableSave({{ section.id }})"
+            onmouseup="handleTextSelection()"
+            onkeyup="handleTextSelection()"
+               id="expContent-{{ section.id }}">{{ section.content|safe }}</div>
+          <div class="expandable-actions">
+            <button class="exp-del-btn" onclick="deleteExpandable({{ section.id }})">🗑 Delete</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </aside>
+
+</div><!-- end .layout -->
+
+
+<!-- ═══════════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════════ -->
+
+<!-- Media View/Edit Modal -->
+<div class="modal-overlay" id="mediaModal" onclick="closeModal('mediaModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal('mediaModal')">✕</button>
+    <div class="modal-title" id="modalTitle">📄 Content</div>
+    <div id="modalBody"></div>
+    <div class="modal-actions" id="modalActions">
+      <button class="btn-secondary" onclick="closeModal('mediaModal')">Close</button>
+      <button class="btn-primary" onclick="saveModalEdit()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Media Modal -->
+<div class="modal-overlay" id="addMediaModal" onclick="closeModal('addMediaModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal('addMediaModal')">✕</button>
+    <div class="modal-title">➕ Add Multimedia Item</div>
+    <div class="modal-field">
+      <label class="modal-label">Title</label>
+      <input class="modal-input" id="newMediaTitle" placeholder="Enter title...">
+    </div>
+    <div class="modal-field" id="newMediaTypeField">
+      <label class="modal-label">Selected Type</label>
+      <div class="selected-type-pill" id="selectedMediaTypeLabel">📄 Text</div>
+    </div>
+    <div id="newMediaFields"></div>
+    <div class="modal-field" style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+      <input type="checkbox" id="nmShowInMultimedia" checked>
+      <label class="modal-label" for="nmShowInMultimedia" style="margin:0;">Show in Multimedia section (uncheck = article only)</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('addMediaModal')">Cancel</button>
+      <button class="btn-primary" onclick="submitAddMedia()">Add Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- Comment tooltip -->
+<div class="comment-tooltip" id="commentTooltip">
+  <div class="comment-tooltip-title">
+    <span>💬 Comment</span>
+    <div style="display:flex;gap:8px;">
+      <button class="comment-tooltip-del" id="commentTooltipEdit">Edit</button>
+      <button class="comment-tooltip-del" id="commentTooltipDel">Delete</button>
+    </div>
+  </div>
+  <div id="commentTooltipText"></div>
+</div>
+
+<!-- Text selection context menu -->
+<div class="selection-menu" id="selectionMenu">
+  <button class="sel-btn" onclick="fmt('bold')"><b>B</b></button>
+  <button class="sel-btn" onclick="fmt('italic')"><i>I</i></button>
+  <button class="sel-btn" onclick="highlightPrimary()">🖊</button>
+  <button class="sel-btn" onclick="setTextColor()">A</button>
+  <button class="sel-btn" onclick="insertLink()">🔗</button>
+  <button class="sel-btn" onclick="linkToPage()">📑</button>
+  <button class="sel-btn" onclick="insertInlineMedia()">🎞</button>
+  <button class="sel-btn" onclick="addComment()">💬</button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════ -->
+<script src="{% static 'editor/js/article-inline-media.js' %}"></script>
+<script>
+const PAGE_SLUG = '{{ page.slug }}';
+const CSRF = '{{ csrf_token }}';
+const PAGE_LINKS = [
+  {% for p in pages %}
+  { slug: '{{ p.slug }}', title: '{{ p.title|escapejs }}' },
+  {% endfor %}
+];
+
+// ─── Utility ─────────────────────────────────────────────────────────────────
+function showToast(msg, duration=2200) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function api(url, data={}, method='POST') {
+  return fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify(data),
+  }).then(r => r.json());
+}
+
+function setSaveStatus(msg) {
+  document.getElementById('saveStatus').textContent = msg;
+}
+
+function applyEditableState() {
+  const editableNodes = [
+    document.getElementById('pageTitle'),
+    document.getElementById('pageSubtitle'),
+    document.getElementById('articleEditor'),
+    ...document.querySelectorAll('.expandable-title-edit, .expandable-content-editor'),
+  ].filter(Boolean);
+
+  editableNodes.forEach(node => {
+    node.setAttribute('contenteditable', isEditingMode ? 'true' : 'false');
+  });
+}
+
+function setEditingMode(enabled) {
+  isEditingMode = !!enabled;
+  document.body.classList.toggle('editing-mode', isEditingMode);
+  const toggle = document.getElementById('editModeToggle');
+  if (toggle) {
+    toggle.setAttribute('aria-pressed', isEditingMode ? 'true' : 'false');
+    toggle.textContent = isEditingMode ? '✅ Editing On' : '✏ Edit Mode';
+  }
+  if (!isEditingMode) {
+    hideSelectionMenu();
+    document.getElementById('commentTooltip')?.classList.remove('visible');
+  }
+  applyEditableState();
+}
+
+function toggleEditMode() {
+  setEditingMode(!isEditingMode);
+}
+
+// ─── Pages ────────────────────────────────────────────────────────────────────
+function createNewPage() {
+  api('/api/page/create/').then(data => {
+    window.location.href = `/page/${data.slug}/`;
+  });
+}
+
+function deletePage(e, slug) {
+  e.preventDefault(); e.stopPropagation();
+  if (!confirm('Delete this page?')) return;
+  api(`/api/page/${slug}/delete/`).then(data => {
+    if (data.redirect) window.location.href = data.redirect;
+  });
+}
+
+// ─── Auto-save ────────────────────────────────────────────────────────────────
+let saveTimer = null;
+function scheduleAutoSave() {
+  if (!isEditingMode) return;
+  setSaveStatus('Editing...');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(savePageContent, 1200);
+}
+
+function savePageTitle() {
+  const title = document.getElementById('pageTitle').textContent.trim() || 'Untitled';
+  api(`/api/page/${PAGE_SLUG}/save/`, { title }).then(() => {
+    setSaveStatus('Saved');
+    // Update navbar tab
+    document.querySelectorAll('.page-tab.active .page-tab-title').forEach(el => el.textContent = title);
+    document.title = title + ' — Interactive Teaching Platform';
+  });
+}
+
+function handleTitleKey(e) {
+  if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+}
+
+function savePageContent() {
+  const content = document.getElementById('articleEditor').innerHTML;
+  api(`/api/page/${PAGE_SLUG}/save/`, { content }).then(() => {
+    setSaveStatus('Saved ✓');
+    setTimeout(() => setSaveStatus('Auto-saved'), 1500);
+  });
+}
+
+function flushPageContentOnLeave() {
+  const content = document.getElementById('articleEditor')?.innerHTML;
+  if (!content) return;
+  fetch(`/api/page/${PAGE_SLUG}/save/`, {
+    method: 'POST',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({ content }),
+  });
+}
+
+window.addEventListener('pagehide', flushPageContentOnLeave);
+
+// ─── Rich Text Editor ─────────────────────────────────────────────────────────
+function fmt(cmd, val=null) {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  restoreArticleSelection();
+  document.execCommand(cmd, false, val);
+  const editor = getActiveEditor();
+  if (editor) editor.focus();
+}
+
+function highlightPrimary() {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  fmt('hiliteColor', '#ede9fe');
+  scheduleActiveSave();
+}
+
+function setTextColor() {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  const color = prompt('Enter text color (hex or css color):', '#c81e68');
+  if (!color) return;
+  fmt('foreColor', color.trim());
+  scheduleActiveSave();
+}
+
+function escapeHtml(text) {
+  return (text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function insertInlineMedia() {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  const editor = getActiveEditor();
+  editor.focus();
+  restoreArticleSelection();
+
+  const items = Object.values(MEDIA_STORE)
+    .filter(item => ['text', 'image', 'audio', 'video', 'youtube'].includes(item.media_type));
+
+  if (!items.length) {
+    showToast('Add a media item first');
+    return;
+  }
+
+  const menu = items
+    .map((item, idx) => `${idx + 1}. [${item.media_type}] ${item.title || 'Untitled'}`)
+    .join('\n');
+
+  const pick = prompt(`Insert media link in article:\n${menu}\n\nEnter number:`);
+  const selected = Number.parseInt(pick, 10) - 1;
+
+  if (Number.isNaN(selected) || selected < 0 || selected >= items.length) {
+    return;
+  }
+
+  insertInlineMediaChip(items[selected]).then(ok => {
+    if (!ok) return;
+    hideSelectionMenu();
+    scheduleActiveSave();
+    showToast('Media link inserted');
+  });
+}
+
+function insertLink() {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  restoreArticleSelection();
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) { showToast('Select text first to create a link'); return; }
+  const url = prompt('Enter URL:', 'https://');
+  if (url) {
+    document.execCommand('createLink', false, url);
+    scheduleActiveSave();
+  }
+  hideSelectionMenu();
+}
+
+function linkToPage() {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  restoreArticleSelection();
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) {
+    showToast('Select text first to create page link');
+    return;
+  }
+  if (!PAGE_LINKS.length) {
+    showToast('No pages available');
+    return;
+  }
+
+  const menu = PAGE_LINKS.map((p, idx) => `${idx + 1}. ${p.title}`).join('\n');
+  const pick = prompt(`Choose page number to link:\n${menu}`);
+  const selected = Number.parseInt(pick, 10) - 1;
+  if (Number.isNaN(selected) || selected < 0 || selected >= PAGE_LINKS.length) return;
+
+  const target = PAGE_LINKS[selected];
+  document.execCommand('createLink', false, `/page/${target.slug}/`);
+  scheduleActiveSave();
+  hideSelectionMenu();
+}
+
+// ─── Text Selection Menu ──────────────────────────────────────────────────────
+function handleTextSelection() {
+  saveArticleSelection();
+  const sel = window.getSelection();
+  const menu = document.getElementById('selectionMenu');
+  if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+    hideSelectionMenu(); return;
+  }
+  // Only show if selection is within article editor
+  const editor = getActiveEditor();
+  if (!editor.contains(sel.anchorNode)) { hideSelectionMenu(); return; }
+
+  const range = sel.getRangeAt(0).getBoundingClientRect();
+  menu.style.left = (range.left + range.width/2 - menu.offsetWidth/2) + 'px';
+  menu.style.top  = (range.top  - 44 + window.scrollY) + 'px';
+  menu.classList.add('visible');
+}
+
+function hideSelectionMenu() {
+  document.getElementById('selectionMenu').classList.remove('visible');
+}
+document.addEventListener('mousedown', e => {
+  if (!e.target.closest('#selectionMenu')) hideSelectionMenu();
+});
+
+// ─── Comments ─────────────────────────────────────────────────────────────────
+let pendingCommentRange = null;
+
+function addComment() {
+  restoreArticleSelection();
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) { showToast('Select text first to add a comment'); return; }
+  const selectedText = sel.toString().trim();
+  if (!selectedText) return;
+  const commentText = prompt('Add your comment:');
+  if (!commentText) return;
+  hideSelectionMenu();
+
+  // Wrap selection in a span
+  const range = sel.getRangeAt(0);
+  const span = document.createElement('span');
+  span.className = 'comment-highlight';
+  span.dataset.commentText = commentText;
+  range.surroundContents(span);
+
+  // Save to DB
+  api(`/api/page/${PAGE_SLUG}/comment/add/`, {
+    selected_text: selectedText,
+    comment_text: commentText,
+  }).then(data => {
+    span.dataset.commentId = data.id;
+    scheduleActiveSave();
+    showToast('Comment added');
+  });
+
+  span.addEventListener('click', function(e) {
+    showCommentTooltip(e, this);
+  });
+}
+
+function showCommentTooltip(e, el) {
+  const tooltip = document.getElementById('commentTooltip');
+  document.getElementById('commentTooltipText').textContent = el.dataset.commentText || '';
+  tooltip.style.left = (e.clientX + 10) + 'px';
+  tooltip.style.top  = (e.clientY - 40) + 'px';
+  tooltip.classList.add('visible');
+  const del = document.getElementById('commentTooltipDel');
+  const edit = document.getElementById('commentTooltipEdit');
+
+  edit.onclick = () => {
+    const current = el.dataset.commentText || '';
+    const updated = prompt('Edit comment:', current);
+    if (!updated || !updated.trim()) return;
+    const cid = el.dataset.commentId;
+    if (!cid) return;
+    api(`/api/comment/${cid}/update/`, { comment_text: updated.trim() }).then(resp => {
+      if (resp.error) return;
+      el.dataset.commentText = resp.comment_text;
+      document.getElementById('commentTooltipText').textContent = resp.comment_text;
+      scheduleActiveSave();
+      showToast('Comment updated');
+    });
+  };
+
+  del.onclick = () => {
+    const cid = el.dataset.commentId;
+    if (cid) api(`/api/comment/${cid}/delete/`);
+    // Unwrap span
+    const parent = el.parentNode;
+    while (el.firstChild) parent.insertBefore(el.firstChild, el);
+    parent.removeChild(el);
+    tooltip.classList.remove('visible');
+    scheduleActiveSave();
+    showToast('Comment removed');
+  };
+}
+
+document.addEventListener('click', e => {
+  const t = document.getElementById('commentTooltip');
+  if (!e.target.closest('.comment-highlight') && !e.target.closest('#commentTooltip')) {
+    t.classList.remove('visible');
+  }
+});
+
+// Re-attach comment listeners on load
+document.querySelectorAll('.comment-highlight').forEach(el => {
+  el.addEventListener('click', function(e) { showCommentTooltip(e, this); });
+});
+
+// ─── Multimedia ───────────────────────────────────────────────────────────────
+const MEDIA_ICONS = { text:'📄', image:'🖼', audio:'🔊', video:'🎬', youtube:'▶️' };
+const MEDIA_STORE = {};
+let currentEditItemId = null;
+let lastArticleRange = null;
+let activeEditorEl = null;
+const ARTICLE_MEDIA_STORE = {
+  image: {},
+  audio: {},
+  video: {},
+};
+
+function getActiveEditor() {
+  if (activeEditorEl && document.body.contains(activeEditorEl)) return activeEditorEl;
+  return document.getElementById('articleEditor');
+}
+
+function setActiveEditor(el) {
+  if (!el) return;
+  activeEditorEl = el;
+}
+
+function getActiveExpandableId() {
+  const editor = getActiveEditor();
+  if (!editor || !editor.id || !editor.id.startsWith('expContent-')) return null;
+  return parseInt(editor.id.replace('expContent-', ''), 10);
+}
+
+function scheduleActiveSave() {
+  const sectionId = getActiveExpandableId();
+  if (sectionId) {
+    scheduleExpandableSave(sectionId);
+    return;
+  }
+  scheduleAutoSave();
+}
+
+function upsertArticleMedia(type, item) {
+  if (!type || !item || !item.id) return;
+  ARTICLE_MEDIA_STORE[type][item.id] = {
+    id: item.id,
+    title: item.title || `Article ${type}`,
+    file_url: item.file_url || '',
+  };
+}
+
+function pickArticleImage() {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  saveArticleSelection();
+  document.getElementById('articleImageInput').click();
+}
+
+function pickArticleAudio() {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  saveArticleSelection();
+  document.getElementById('articleAudioInput').click();
+}
+
+function pickArticleVideo() {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  saveArticleSelection();
+  document.getElementById('articleVideoInput').click();
+}
+
+function articleMediaEndpoint(type) {
+  if (type === 'image') return `/api/page/${PAGE_SLUG}/article-image/add/`;
+  if (type === 'audio') return `/api/page/${PAGE_SLUG}/article-audio/add/`;
+  return `/api/page/${PAGE_SLUG}/article-video/add/`;
+}
+
+function handleArticleMediaUpload(type, inputEl) {
+  const file = inputEl?.files?.[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('title', file.name);
+  formData.append('file', file);
+
+  fetch(articleMediaEndpoint(type), {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF },
+    body: formData,
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        showToast('Upload failed');
+        return;
+      }
+      upsertArticleMedia(type, data);
+      restoreArticleSelection();
+      insertArticleMediaTextLink(type, data);
+      scheduleActiveSave();
+      showToast(`Article ${type} inserted`);
+    })
+    .catch(() => showToast('Upload failed'));
+
+  inputEl.value = '';
+}
+
+function insertArticleMediaTextLink(type, item) {
+  const safeTitle = escapeHtml(item.title || `Article ${type}`);
+  const safeUrl = escapeHtml(item.file_url || '');
+  const sel = window.getSelection();
+  const selectedText = (sel && !sel.isCollapsed && sel.toString().trim())
+    ? sel.toString().trim()
+    : `Open ${type}`;
+  const customText = prompt('Text to show in article:', selectedText) || selectedText;
+  const safeText = escapeHtml(customText);
+  const chip = `<span class="article-media-link" data-link-label="${safeText}" data-article-media-type="${type}" data-article-media-id="${item.id}" data-article-media-url="${safeUrl}" data-article-media-title="${safeTitle}">${safeText}<span class="article-media-icon">🔍</span></span>&nbsp;`;
+  document.execCommand('insertHTML', false, chip);
+}
+
+function openArticleMediaModal(type, title, fileUrl) {
+  const modal = document.getElementById('mediaModal');
+  document.getElementById('modalTitle').innerHTML = `${MEDIA_ICONS[type] || '📎'} ${title}`;
+  const body = document.getElementById('modalBody');
+
+  if (type === 'image') {
+    body.innerHTML = fileUrl
+      ? `<img src="${fileUrl}" class="modal-image-display" alt="${title}">`
+      : '<p style="color:#999;text-align:center;padding:20px">No image uploaded</p>';
+  } else if (type === 'audio') {
+    body.innerHTML = fileUrl
+      ? `<audio controls class="modal-audio-player"><source src="${fileUrl}">Your browser does not support audio.</audio>`
+      : '<p style="color:#999;text-align:center;padding:20px">No audio uploaded</p>';
+  } else if (type === 'video') {
+    body.innerHTML = fileUrl
+      ? `<video controls class="modal-video-player"><source src="${fileUrl}">Your browser does not support video.</video>`
+      : '<p style="color:#999;text-align:center;padding:20px">No video uploaded</p>';
+  } else {
+    return;
+  }
+
+  const actions = document.getElementById('modalActions');
+  const saveBtn = actions.querySelector('.btn-primary');
+  if (saveBtn) saveBtn.style.display = 'none';
+  openModal('mediaModal');
+}
+
+function upsertMediaStore(item) {
+  if (!item || !item.id) return;
+  MEDIA_STORE[item.id] = {
+    id: item.id,
+    media_type: item.media_type,
+    title: item.title || 'Untitled',
+    text_content: item.text_content || '',
+    file_url: item.file_url || '',
+    youtube_url: item.youtube_url || '',
+    embed_url: item.embed_url || '',
+    show_in_multimedia: item.show_in_multimedia !== false,
+  };
+}
+
+function saveArticleSelection() {
+  const editor = getActiveEditor();
+  const sel = window.getSelection();
+  if (!editor || !sel || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  if (editor.contains(range.startContainer) && editor.contains(range.endContainer)) {
+    lastArticleRange = range.cloneRange();
+  }
+}
+
+function restoreArticleSelection() {
+  const editor = getActiveEditor();
+  if (!editor) return;
+  editor.focus();
+  const sel = window.getSelection();
+  if (!sel) return;
+
+  if (lastArticleRange) {
+    sel.removeAllRanges();
+    sel.addRange(lastArticleRange);
+    return;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  range.collapse(false);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function createArticleMediaLink(item, displayText) {
+  const defaultText = displayText || `Open ${item.media_type}: ${item.title || 'Untitled'}`;
+  return api(`/api/page/${PAGE_SLUG}/article-media/add/`, {
+    multimedia_item_id: item.id,
+    display_text: defaultText,
+  });
+}
+
+function insertInlineMediaChip(item) {
+  if (!item || !item.id) return Promise.resolve(false);
+  const sel = window.getSelection();
+  const selectedText = (sel && !sel.isCollapsed && sel.toString().trim())
+    ? sel.toString().trim()
+    : `Open ${item.media_type}`;
+  const renameText = prompt('Text to show in article:', selectedText) || selectedText;
+
+  return createArticleMediaLink(item, renameText)
+    .then(link => {
+      const label = escapeHtml(link.display_text || renameText);
+      const icon = MEDIA_ICONS[item.media_type] || '📎';
+      const chip = `<span class="inline-media-link article-media-link" contenteditable="false" data-link-label="${label}" data-article-link-id="${link.id}" data-media-id="${item.id}" data-media-type="${item.media_type}">${icon} ${label}</span>&nbsp;`;
+      document.execCommand('insertHTML', false, chip);
+      return true;
+    })
+    .catch(() => {
+      showToast('Could not create article link');
+      return false;
+    });
+}
+
+function insertMediaFromGrid(itemId) {
+  const media = MEDIA_STORE[itemId];
+  if (!media) {
+    showToast('Media item not found');
+    return;
+  }
+  restoreArticleSelection();
+  insertInlineMediaChip(media).then(ok => {
+    if (!ok) return;
+    scheduleActiveSave();
+    showToast('Inserted into article');
+  });
+}
+
+function openMediaModal(itemId) {
+  currentEditItemId = itemId;
+  const media = MEDIA_STORE[itemId];
+  if (!media) return;
+  showMediaModal(itemId, media.media_type, media.title || 'Untitled');
+}
+
+function renameLinkedMediaText(el) {
+  const current = (el.dataset.linkLabel || '').trim() || 'Link text';
+  const renamed = prompt('Rename linked text:', current);
+  if (!renamed || !renamed.trim()) return;
+  const clean = renamed.trim();
+  const safe = escapeHtml(clean);
+  el.dataset.linkLabel = clean;
+
+  if (el.dataset.mediaId) {
+    const icon = MEDIA_ICONS[el.dataset.mediaType] || '📎';
+    el.innerHTML = `${icon} ${safe}`;
+  } else {
+    el.innerHTML = `${safe}<span class="article-media-icon">🔍</span>`;
+  }
+
+  const linkId = el.dataset.articleLinkId;
+  if (linkId) {
+    api(`/api/article-media/${linkId}/update/`, { display_text: clean });
+  }
+
+  scheduleActiveSave();
+  showToast('Link text updated');
+}
+
+function showMediaModal(itemId, type, title) {
+  currentEditItemId = itemId;
+  const modal = document.getElementById('mediaModal');
+  document.getElementById('modalTitle').innerHTML = `${MEDIA_ICONS[type]} ${title}`;
+  const body = document.getElementById('modalBody');
+  body.innerHTML = '';
+
+  const media = MEDIA_STORE[itemId] || {};
+
+  if (type === 'text') {
+    const textContent = media.text_content || '';
+    body.innerHTML = `
+      <div contenteditable="true" class="modal-text-content" id="modalTextContent"
+           onblur="autoSaveModalText()">${textContent}</div>`;
+  } else if (type === 'image') {
+    const fileUrl = media.file_url || '';
+    body.innerHTML = `
+      ${fileUrl ? `<img src="${fileUrl}" class="modal-image-display" alt="${title}">` : '<p style="color:#999;text-align:center;padding:20px">No image uploaded</p>'}
+      <div class="modal-field">
+        <label class="modal-label">Replace Image</label>
+        <input type="file" class="modal-input" accept="image/*" id="modalFileInput" onchange="uploadAndReplace(${itemId})">
+      </div>`;
+    document.getElementById('modalActions').querySelector('.btn-primary').style.display = 'none';
+  } else if (type === 'audio') {
+    const fileUrl = media.file_url || '';
+    body.innerHTML = `
+      ${fileUrl ? `<audio controls class="modal-audio-player"><source src="${fileUrl}">Your browser does not support audio.</audio>` : '<p style="color:#999;text-align:center;padding:20px">No audio uploaded</p>'}
+      <div class="modal-field">
+        <label class="modal-label">Replace Audio</label>
+        <input type="file" class="modal-input" accept="audio/*" id="modalFileInput" onchange="uploadAndReplace(${itemId})">
+      </div>`;
+    document.getElementById('modalActions').querySelector('.btn-primary').style.display = 'none';
+  } else if (type === 'video') {
+    const fileUrl = media.file_url || '';
+    body.innerHTML = `
+      ${fileUrl ? `<video controls class="modal-video-player"><source src="${fileUrl}">Your browser does not support video.</video>` : '<p style="color:#999;text-align:center;padding:20px">No video uploaded</p>'}
+      <div class="modal-field">
+        <label class="modal-label">Replace Video</label>
+        <input type="file" class="modal-input" accept="video/*" id="modalFileInput" onchange="uploadAndReplace(${itemId})">
+      </div>`;
+    document.getElementById('modalActions').querySelector('.btn-primary').style.display = 'none';
+  } else if (type === 'youtube') {
+    const embedUrl = media.embed_url || '';
+    body.innerHTML = `
+      ${embedUrl ? `<iframe src="${embedUrl}" class="modal-youtube-embed" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>` : ''}
+      <div class="modal-field">
+        <label class="modal-label">YouTube URL</label>
+        <input class="modal-input" id="modalYoutubeUrl" value="${media.youtube_url || ''}" placeholder="https://www.youtube.com/watch?v=...">
+      </div>`;
+  }
+
+  // Title edit
+  body.insertAdjacentHTML('afterbegin', `
+    <div class="modal-field" style="margin-bottom:16px">
+      <label class="modal-label">Title</label>
+      <input class="modal-input" id="modalItemTitle" value="${title}">
+    </div>`);
+
+  openModal('mediaModal');
+  // Restore save button visibility
+  const saveBtn = document.getElementById('modalActions').querySelector('.btn-primary');
+  if (saveBtn) saveBtn.style.display = '';
+}
+
+function autoSaveModalText() {
+  if (!currentEditItemId) return;
+  const tc = document.getElementById('modalTextContent');
+  if (tc) {
+    const textContent = tc.innerHTML;
+    if (MEDIA_STORE[currentEditItemId]) {
+      MEDIA_STORE[currentEditItemId].text_content = textContent;
+    }
+    api(`/api/multimedia/${currentEditItemId}/save/`, {
+      text_content: textContent,
+    });
+  }
+}
+
+function saveModalEdit() {
+  if (!currentEditItemId) return;
+  const title = document.getElementById('modalItemTitle')?.value || '';
+  const textContent = document.getElementById('modalTextContent')?.innerHTML || '';
+  const youtubeUrl = document.getElementById('modalYoutubeUrl')?.value || '';
+  api(`/api/multimedia/${currentEditItemId}/save/`, { title, text_content: textContent, youtube_url: youtubeUrl })
+    .then(data => {
+      const media = MEDIA_STORE[currentEditItemId] || {};
+      media.title = title || media.title;
+      media.text_content = textContent || media.text_content;
+      media.youtube_url = youtubeUrl || media.youtube_url;
+      if (data.embed_url) media.embed_url = data.embed_url;
+      MEDIA_STORE[currentEditItemId] = media;
+
+      const card = document.getElementById(`mc-${currentEditItemId}`);
+      if (card) {
+        card.querySelector('.media-card-label').textContent = title;
+        card.dataset.embedUrl = media.embed_url || '';
+      }
+
+      closeModal('mediaModal');
+      showToast('Saved ✓');
+    });
+}
+
+function uploadAndReplace(itemId) {
+  const input = document.getElementById('modalFileInput');
+  if (!input.files.length) return;
+  const formData = new FormData();
+  formData.append('file', input.files[0]);
+  formData.append('_replace', 'true');
+  fetch(`/api/multimedia/${itemId}/upload/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF },
+    body: formData
+  }).then(r => r.json()).then(data => {
+    if (data.file_url) {
+      if (MEDIA_STORE[itemId]) {
+        MEDIA_STORE[itemId].file_url = data.file_url;
+      }
+      const card = document.getElementById(`mc-${itemId}`);
+      if (card) card.dataset.fileUrl = data.file_url;
+      showToast('File replaced ✓');
+      closeModal('mediaModal');
+    }
+  });
+}
+
+function openEditMedia(itemId) {
+  openMediaModal(itemId);
+}
+
+function deleteMedia(itemId) {
+  if (!confirm('Delete this item?')) return;
+  api(`/api/multimedia/${itemId}/delete/`).then(() => {
+    delete MEDIA_STORE[itemId];
+    document.getElementById(`mc-${itemId}`)?.remove();
+    showToast('Deleted');
+  });
+}
+
+// ─── Add Media Modal ──────────────────────────────────────────────────────────
+let selectedMediaType = 'text';
+
+function submitQuickMedia(formData) {
+  return fetch(`/api/page/${PAGE_SLUG}/multimedia/add/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF },
+    body: formData,
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        showToast(data.error || 'Could not add media');
+        return;
+      }
+      upsertMediaStore(data);
+      if (data.show_in_multimedia) addMediaCardToGrid(data);
+      showToast('Item added ✓');
+    })
+    .catch(() => showToast('Could not add media item'));
+}
+
+function addMediaQuick(type, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  if (!isEditingMode) setEditingMode(true);
+
+  if (type === 'image') {
+    document.getElementById('quickImageInput')?.click();
+    return;
+  }
+  if (type === 'audio') {
+    document.getElementById('quickAudioInput')?.click();
+    return;
+  }
+  if (type === 'video') {
+    document.getElementById('quickVideoInput')?.click();
+    return;
+  }
+
+  if (type === 'text') {
+    const title = prompt('Text title:', 'New Text') || 'New Text';
+    const text = prompt('Text content:', '') || '';
+    const formData = new FormData();
+    formData.append('media_type', 'text');
+    formData.append('title', title.trim() || 'New Text');
+    formData.append('text_content', text);
+    formData.append('show_in_multimedia', 'true');
+    submitQuickMedia(formData);
+    return;
+  }
+
+  if (type === 'youtube') {
+    const title = prompt('YouTube title:', 'YouTube Video') || 'YouTube Video';
+    const url = prompt('YouTube URL:', 'https://www.youtube.com/watch?v=') || '';
+    if (!url.trim()) return;
+    const formData = new FormData();
+    formData.append('media_type', 'youtube');
+    formData.append('title', title.trim() || 'YouTube Video');
+    formData.append('youtube_url', url.trim());
+    formData.append('show_in_multimedia', 'true');
+    submitQuickMedia(formData);
+  }
+}
+
+function quickUploadMedia(type, inputEl) {
+  const file = inputEl?.files?.[0];
+  if (!file) return;
+  const suggested = file.name.replace(/\.[^.]+$/, '');
+  const title = prompt(`${type.toUpperCase()} title:`, suggested) || suggested;
+
+  const formData = new FormData();
+  formData.append('media_type', type);
+  formData.append('title', (title || suggested || `New ${type}`).trim());
+  formData.append('file', file);
+  formData.append('show_in_multimedia', 'true');
+  submitQuickMedia(formData);
+
+  inputEl.value = '';
+}
+
+function quickOpenAddMedia(type, event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  try {
+    openAddMedia(type);
+    return;
+  } catch (err) {
+    console.error('openAddMedia failed:', err);
+  }
+
+  // Fallback open path so multimedia buttons always respond.
+  const modal = document.getElementById('addMediaModal');
+  if (!modal) return;
+  selectedMediaType = type;
+  const typeLabel = document.getElementById('selectedMediaTypeLabel');
+  if (typeLabel) typeLabel.textContent = MEDIA_TYPE_LABELS[type] || '📄 Text';
+  renderNewMediaFields(type);
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.btn-add-media[data-media-type]');
+  if (!btn) return;
+  quickOpenAddMedia(btn.dataset.mediaType, e);
+});
+
+function openAddMedia(type='text') {
+  if (!isEditingMode) setEditingMode(true);
+  saveArticleSelection();
+  selectedMediaType = type;
+  const typeLabel = document.getElementById('selectedMediaTypeLabel');
+  if (typeLabel) typeLabel.textContent = MEDIA_TYPE_LABELS[type] || '📄 Text';
+  const showChk = document.getElementById('nmShowInMultimedia');
+  if (showChk) showChk.checked = true;
+  renderNewMediaFields(type);
+  openModal('addMediaModal');
+}
+
+function renderNewMediaFields(type) {
+  const f = document.getElementById('newMediaFields');
+  if (type === 'text') {
+    f.innerHTML = `
+      <div class="modal-field">
+        <label class="modal-label">Content</label>
+        <textarea class="modal-input modal-textarea" id="nmContent" placeholder="Enter text content..."></textarea>
+      </div>`;
+  } else if (type === 'youtube') {
+    f.innerHTML = `
+      <div class="modal-field">
+        <label class="modal-label">YouTube URL</label>
+        <input class="modal-input" id="nmYoutubeUrl" placeholder="https://www.youtube.com/watch?v=...">
+      </div>`;
+  } else {
+    const accept = type === 'image' ? 'image/*' : type === 'audio' ? 'audio/*' : 'video/*';
+    f.innerHTML = `
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('nmFile').click()"
+           ondragover="event.preventDefault();this.classList.add('dragover')"
+           ondragleave="this.classList.remove('dragover')"
+           ondrop="handleDrop(event)">
+        <div class="drop-zone-icon">${MEDIA_ICONS[type]}</div>
+        <div class="drop-zone-text">Click or drag & drop to upload<br><small>Supports ${accept}</small></div>
+      </div>
+      <input type="file" id="nmFile" accept="${accept}" class="modal-input" onchange="handleFileSelect(this)">
+      <div id="nmFilePreview" style="margin-top:8px;font-size:.82rem;color:var(--teal);font-family:'Sora',sans-serif"></div>`;
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  const dz = document.getElementById('dropZone');
+  if (dz) dz.classList.remove('dragover');
+  const fi = document.getElementById('nmFile');
+  if (fi && e.dataTransfer.files.length) {
+    fi.files = e.dataTransfer.files;
+    handleFileSelect(fi);
+  }
+}
+
+function handleFileSelect(input) {
+  const prev = document.getElementById('nmFilePreview');
+  if (prev && input.files.length) prev.textContent = `📎 ${input.files[0].name}`;
+}
+
+function submitAddMedia() {
+  const title = document.getElementById('newMediaTitle').value.trim() || 'Untitled';
+  const showInMultimedia = document.getElementById('nmShowInMultimedia')?.checked ?? true;
+  const formData = new FormData();
+  formData.append('media_type', selectedMediaType);
+  formData.append('title', title);
+  formData.append('show_in_multimedia', showInMultimedia ? 'true' : 'false');
+
+  if (selectedMediaType === 'text') {
+    formData.append('text_content', document.getElementById('nmContent')?.value || '');
+  } else if (selectedMediaType === 'youtube') {
+    formData.append('youtube_url', document.getElementById('nmYoutubeUrl')?.value || '');
+  } else {
+    const fi = document.getElementById('nmFile');
+    if (!fi?.files.length) {
+      showToast(`Select a ${selectedMediaType} file first`);
+      return;
+    }
+    formData.append('file', fi.files[0]);
+  }
+
+  fetch(`/api/page/${PAGE_SLUG}/multimedia/add/`, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF },
+    body: formData,
+  }).then(r => r.json()).then(data => {
+    if (data.error) {
+      showToast(data.error || 'Could not add media');
+      return;
+    }
+    upsertMediaStore(data);
+    if (data.show_in_multimedia) {
+      addMediaCardToGrid(data);
+    }
+    closeModal('addMediaModal');
+    document.getElementById('newMediaTitle').value = '';
+
+    if (!data.show_in_multimedia) {
+      restoreArticleSelection();
+      insertInlineMediaChip(data).then(ok => {
+        if (!ok) return;
+        scheduleActiveSave();
+        showToast('Article-only media added and linked');
+      });
+      return;
+    }
+
+    showToast('Item added ✓');
+  }).catch(() => {
+    showToast('Could not add media item');
+  });
+}
+
+function addMediaCardToGrid(item) {
+  upsertMediaStore(item);
+  const existing = document.getElementById(`mc-${item.id}`);
+  if (existing) existing.remove();
+
+  const grid = document.getElementById('mediaGrid');
+  const div = document.createElement('div');
+  div.className = 'media-card';
+  div.id = `mc-${item.id}`;
+  div.dataset.type = item.media_type;
+  div.dataset.textContent = item.text_content || '';
+  div.dataset.fileUrl = item.file_url || '';
+  div.dataset.youtubeUrl = item.youtube_url || '';
+  div.dataset.embedUrl = item.embed_url || '';
+  div.onclick = () => openMediaModal(item.id);
+  div.innerHTML = `
+    <div class="card-actions">
+      <button class="card-btn card-btn-edit" title="Insert in article" onclick="event.stopPropagation();insertMediaFromGrid(${item.id})">➕</button>
+      <button class="card-btn card-btn-edit" onclick="event.stopPropagation();openEditMedia(${item.id})">✏</button>
+      <button class="card-btn card-btn-del" onclick="event.stopPropagation();deleteMedia(${item.id})">✕</button>
+    </div>
+    <span class="media-card-icon media-type-icon-${item.media_type}">${MEDIA_ICONS[item.media_type]}</span>
+    <span class="media-card-label">${item.title}</span>
+    <span class="media-card-type">${item.media_type}</span>`;
+  grid.appendChild(div);
+}
+
+// Populate media cache and existing card data from server
+(function populateMediaData() {
+  {% for item in multimedia_items %}
+  upsertMediaStore({
+    id: {{ item.id }},
+    media_type: '{{ item.media_type }}',
+    title: '{{ item.title|escapejs }}',
+    text_content: '{{ item.text_content|escapejs }}',
+    file_url: '{% if item.file %}{{ item.file.url }}{% endif %}',
+    youtube_url: '{{ item.youtube_url|escapejs }}',
+    embed_url: '{{ item.get_youtube_embed_url|escapejs }}',
+    show_in_multimedia: {% if item.show_in_multimedia %}true{% else %}false{% endif %},
+  });
+
+  const c{{ item.id }} = document.getElementById('mc-{{ item.id }}');
+  if (c{{ item.id }}) {
+    c{{ item.id }}.dataset.textContent = '{{ item.text_content|escapejs }}';
+    c{{ item.id }}.dataset.fileUrl = '{% if item.file %}{{ item.file.url }}{% endif %}';
+    c{{ item.id }}.dataset.youtubeUrl = '{{ item.youtube_url|escapejs }}';
+    c{{ item.id }}.dataset.embedUrl = '{{ item.get_youtube_embed_url|escapejs }}';
+  }
+  {% endfor %}
+})();
+
+(function populateArticleMediaData() {
+  {% for item in article_images %}
+  upsertArticleMedia('image', {
+    id: {{ item.id }},
+    title: '{{ item.title|escapejs }}',
+    file_url: '{{ item.file.url }}',
+  });
+  {% endfor %}
+
+  {% for item in article_audios %}
+  upsertArticleMedia('audio', {
+    id: {{ item.id }},
+    title: '{{ item.title|escapejs }}',
+    file_url: '{{ item.file.url }}',
+  });
+  {% endfor %}
+
+  {% for item in article_videos %}
+  upsertArticleMedia('video', {
+    id: {{ item.id }},
+    title: '{{ item.title|escapejs }}',
+    file_url: '{{ item.file.url }}',
+  });
+  {% endfor %}
+})();
+
+// ─── Expandable Sections ──────────────────────────────────────────────────────
+const expandableTimers = {};
+
+function toggleExpand(sectionId) {
+  const item = document.getElementById(`exp-${sectionId}`);
+  const isOpen = item.classList.toggle('open');
+  api(`/api/expandable/${sectionId}/save/`, { is_open: isOpen });
+}
+
+function saveExpandableTitle(sectionId, el) {
+  const title = el.textContent.trim() || 'Section';
+  api(`/api/expandable/${sectionId}/save/`, { title });
+}
+
+function scheduleExpandableSave(sectionId) {
+  clearTimeout(expandableTimers[sectionId]);
+  expandableTimers[sectionId] = setTimeout(() => {
+    const content = document.getElementById(`expContent-${sectionId}`)?.innerHTML || '';
+    api(`/api/expandable/${sectionId}/save/`, { content });
+  }, 1200);
+}
+
+function addExpandableSection() {
+  if (!isEditingMode) { showToast('Enable Edit Mode first'); return; }
+  api(`/api/page/${PAGE_SLUG}/expandable/add/`, { title: 'New Section', content: '<p>Add content here.</p>' })
+    .then(data => {
+      const list = document.getElementById('expandableList');
+      const div = document.createElement('div');
+      div.className = 'expandable-item';
+      div.id = `exp-${data.id}`;
+      div.dataset.id = data.id;
+      div.innerHTML = `
+        <div class="expandable-header" onclick="toggleExpand(${data.id})">
+          <span contenteditable="true" class="expandable-title-edit"
+                onclick="event.stopPropagation()"
+                onblur="saveExpandableTitle(${data.id}, this)"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}">${data.title}</span>
+          <svg class="expand-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+        <div class="expandable-body">
+          <div class="expandable-content-editor" contenteditable="true"
+               oninput="scheduleExpandableSave(${data.id})"
+            onmouseup="handleTextSelection()"
+            onkeyup="handleTextSelection()"
+               id="expContent-${data.id}">${data.content}</div>
+          <div class="expandable-actions">
+            <button class="exp-del-btn" onclick="deleteExpandable(${data.id})">🗑 Delete</button>
+          </div>
+        </div>`;
+      list.appendChild(div);
+      applyEditableState();
+      // Auto-open
+      setTimeout(() => toggleExpand(data.id), 50);
+      showToast('Section added');
+    });
+}
+
+function deleteExpandable(sectionId) {
+  if (!confirm('Delete this section?')) return;
+  api(`/api/expandable/${sectionId}/delete/`).then(() => {
+    document.getElementById(`exp-${sectionId}`)?.remove();
+    showToast('Deleted');
+  });
+}
+
+// ─── Modal helpers ────────────────────────────────────────────────────────────
+function openModal(id) {
+  document.getElementById(id).classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+  document.body.style.overflow = '';
+  currentEditItemId = null;
+}
+
+// Keyboard: ESC closes modals
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.active').forEach(m => {
+      closeModal(m.id);
+    });
+  }
+});
+
+// ─── Inline links in editors  → open media modal ─────────────────────────────
+document.addEventListener('click', e => {
+  const editorHost = e.target.closest('#articleEditor, .expandable-content-editor');
+  if (!editorHost) return;
+  setActiveEditor(editorHost);
+
+  const anchor = e.target.closest('a[href]');
+  if (anchor && editorHost.contains(anchor)) {
+    e.preventDefault();
+    const href = anchor.getAttribute('href') || '';
+    if (href.startsWith('/page/')) {
+      window.location.href = href;
+      return;
+    }
+    window.open(href, '_blank', 'noopener');
+    return;
+  }
+
+  const articleMediaLink = e.target.closest('.article-media-link');
+  if (articleMediaLink) {
+    const multimediaId = articleMediaLink.dataset.mediaId;
+    if (multimediaId) {
+      openMediaModal(parseInt(multimediaId, 10));
+      return;
+    }
+
+    const type = articleMediaLink.dataset.articleMediaType;
+    const title = articleMediaLink.dataset.articleMediaTitle || 'Article media';
+    const fileUrl = articleMediaLink.dataset.articleMediaUrl || '';
+    if (type && fileUrl) {
+      openArticleMediaModal(type, title, fileUrl);
+      return;
+    }
+  }
+
+  const link = e.target.closest('.inline-media-link');
+  if (link) {
+    const itemId = link.dataset.mediaId;
+    if (itemId) openMediaModal(parseInt(itemId));
+  }
+});
+
+document.addEventListener('dblclick', e => {
+  const editorHost = e.target.closest('#articleEditor, .expandable-content-editor');
+  if (!editorHost) return;
+  setActiveEditor(editorHost);
+
+  const link = e.target.closest('.article-media-link');
+  if (!link) return;
+  e.preventDefault();
+  e.stopPropagation();
+  renameLinkedMediaText(link);
+});
+
+document.addEventListener('focusin', e => {
+  const editor = e.target.closest('#articleEditor, .expandable-content-editor');
+  if (editor) setActiveEditor(editor);
+});
+
+function normalizeLegacyMediaLabels() {
+  document.querySelectorAll('#articleEditor, .expandable-content-editor').forEach(editor => {
+    let changed = false;
+
+    editor.querySelectorAll('.article-media-link, .inline-media-link').forEach(link => {
+      const lupe = link.querySelector('.lupe');
+      if (lupe) {
+        lupe.remove();
+        changed = true;
+      }
+
+      if (link.classList.contains('article-media-link')) {
+        const icon = link.querySelector('.article-media-icon');
+        const textNode = Array.from(link.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
+        if (textNode && /\sopen\s*$/i.test(textNode.textContent)) {
+          textNode.textContent = textNode.textContent.replace(/\sopen\s*$/i, '');
+          changed = true;
+        }
+        if (icon && textNode && !/\s$/.test(textNode.textContent)) {
+          textNode.textContent = `${textNode.textContent.trimEnd()} `;
+        }
+      } else {
+        const full = link.textContent || '';
+        if (/\sopen\s*$/i.test(full)) {
+          const cleaned = full.replace(/\sopen\s*$/i, '').trimEnd();
+          const mediaType = link.dataset.mediaType;
+          const icon = MEDIA_ICONS[mediaType] || '';
+          if (icon && cleaned.startsWith(icon)) {
+            link.textContent = cleaned;
+          } else if (icon) {
+            link.textContent = `${icon} ${cleaned}`;
+          } else {
+            link.textContent = cleaned;
+          }
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      if (editor.id === 'articleEditor') {
+        setTimeout(() => savePageContent(), 100);
+      } else if (editor.id.startsWith('expContent-')) {
+        const sectionId = parseInt(editor.id.replace('expContent-', ''), 10);
+        setTimeout(() => scheduleExpandableSave(sectionId), 100);
+      }
+    }
+  });
+}
+
+normalizeLegacyMediaLabels();
+setEditingMode(false);
+</script>
+</body>
+</html>
