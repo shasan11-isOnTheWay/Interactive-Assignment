@@ -75,3 +75,4 @@ teaching_platform/
 - Database is SQLite (`db.sqlite3`) — change to PostgreSQL for production
 - Secret key should be changed for production deployment
 # Interactive-Care-Assignment
+# Interactive-Assignment
